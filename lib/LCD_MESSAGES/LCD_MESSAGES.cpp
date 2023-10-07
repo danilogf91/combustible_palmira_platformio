@@ -1,5 +1,5 @@
 #include "Arduino.h"
-#include "LCD_CABECERA.h"
+#include "LCD_MESSAGES.h"
 
 void cabecera_lcd (LiquidCrystal_I2C& lcd)
 {
@@ -73,3 +73,4 @@ void mensaje_incio (LiquidCrystal_I2C& lcd)
   lcd.print ("INICIANDO...........");                               // IMPRIME MENSAJE    
   delay (200);
 }
+

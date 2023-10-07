@@ -22,8 +22,6 @@
 unsigned long previousMillisWDT = 0;
 const unsigned long intervalWDT = 5000; // 6 segundos en milisegundos
 
-
-
 int cantidad_galones_validacion = 1000;
 
 
@@ -81,8 +79,11 @@ Keypad teclado = Keypad (makeKeymap (teclas), pinesF, pinesC, filas, columnas);
 
 #include "variables.h"
 #include "funciones.h"
-#include "LCD_CABECERA.h"
-
+#include "LCD_MESSAGES.h"
+#include "funciones_helpers.h"
+#include "estados_normales.h"
+#include "estados_super.h"
+#include "memoria_eeprom.h"
 //--------------------------------------------------------------------FIN VARIABLES DEL PROGRAMA-------------------------------------------------------------------------------------------------------
 
 
@@ -113,7 +114,7 @@ void setup ()
   //attachInterrupt(4, PIN_DISPENSADOR, FALLING);                   // CONFIGURAR PIN 19 DEL DISPENSADOR DE COMBUSTIBLE --->> ENTRADA PIN 19
   pinMode (buzzer, OUTPUT);                                        // CONFIGURAR EL PIN BUZZER COMO SALIDA             --->> SALIDA PIN 50
   pinMode (BOMBA, OUTPUT);                                         // CONFIGURAR EL PIN BOMBA COMO SALIDA              --->> SALIDA PIN 52
-  num_estado = ESTADO_1 ();                                          // LLAMA FUNCION ESTADO 1
+  num_estado = ESTADO_1 (lcd, dato, pantalla);;                                          // LLAMA FUNCION ESTADO 1
 
   pinMode (TriggerPin, OUTPUT);                                    // PIN TRIGGER COMO SALIDA
   pinMode (EchoPin, INPUT);                                        // PIN ECO COMO ENTRADA
@@ -131,8 +132,7 @@ void setup ()
 
 void loop ()
 {
-
-  reiniciar_wdt ();                                                          // REINICIAR WATVHDOG TIMER
+  reiniciar_wdt (previousMillisWDT, intervalWDT);                                                          // REINICIAR WATVHDOG TIMER
 
   //*********************************************************************************INICIO SUPER USUARIO**************************************************************************************************
   if ( num_estado != 23 || num_estado == 23 )
@@ -176,19 +176,19 @@ void loop ()
   if ( pantalla == 20 )                                                      // CONDICION 1) pantalla=20 ES LA BANDERA PARA INGRESAR A SUPER USUARIO
   {
     borrar ();
-    pantalla = ESTADO_SUPER_1 ();                                            // LLAMA AL ESTADO_SUPER_1 MENU: 1._VER # GALONES
+    pantalla = ESTADO_SUPER_1 (lcd, dato, pantalla);                                            // LLAMA AL ESTADO_SUPER_1 MENU: 1._VER # GALONES
     num_estado = pantalla;                                                  // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( dato == 'B' && pantalla == 21 )                                         // CONDICION 2) 
   {
-    pantalla = ESTADO_SUPER_2 ();                                            // LLAMA AL ESTADO_SUPER_1 MENU: 2._ NUEVA CARGA COMBUSTIBLE  
+    pantalla = ESTADO_SUPER_2 (lcd, dato, pantalla);                                            // LLAMA AL ESTADO_SUPER_1 MENU: 2._ NUEVA CARGA COMBUSTIBLE  
     num_estado = pantalla;                                                  // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( dato == 'A' && pantalla == 22 )                                         // CONDICION 3)                                       
   {
-    pantalla = ESTADO_SUPER_1 ();                                            // LLAMA AL ESTADO_SUPER_1 MENU: 1._VER # GALONES
+    pantalla = ESTADO_SUPER_1 (lcd, dato, pantalla);                                            // LLAMA AL ESTADO_SUPER_1 MENU: 1._VER # GALONES
     num_estado = pantalla;                                                  // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
@@ -196,7 +196,7 @@ void loop ()
   {
     // RESETAR TODOS LOS VALORES UTILIZADOS EN LAS FUNCIONES SUPER USUARIO
     borrar ();
-    pantalla = ESTADO_1 ();                                                  // MUESTRA EL ESTADO 1
+    pantalla = ESTADO_1 (lcd, dato, pantalla);;                                                  // MUESTRA EL ESTADO 1
     num_estado = pantalla;                                                  // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
@@ -215,58 +215,58 @@ void loop ()
 
   if ( ( dato == 'C' && pantalla == 22 ) )                                      // CONDICION 6)
   {
-    pantalla = ESTADO_SUPER_4 ();                                            // LLAMA AL INGRESO DE # FACTURA
+    pantalla = ESTADO_SUPER_4 (lcd, dato, pantalla);                                            // LLAMA AL INGRESO DE # FACTURA
     num_estado = pantalla;                                                  // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( ( dato == 'C' && pantalla == 24 && contador_factura >= 6 ) )               // CONDICION 7)
   {
-    pantalla = ESTADO_SUPER_5 ();                                            // LLAMA AL INGRESO DE # GALONES
+    pantalla = ESTADO_SUPER_5 (lcd, dato, pantalla);                                            // LLAMA AL INGRESO DE # GALONES
     num_estado = pantalla;                                                  // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( ( dato == 'C' && pantalla == 25 && ( Num_gal_valido >= 0.25 && Num_gal_valido <= cantidad_galones_validacion ) ) )        // CONDICION 8)                                                                                                                                                             
   {
-    pantalla = ESTADO_SUPER_7 ();                    // LLAMA AL INGRESO DE CHOFER #1
+    pantalla = ESTADO_SUPER_7 (lcd, dato, pantalla);                    // LLAMA AL INGRESO DE CHOFER #1
     num_estado = pantalla;                          // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( ( dato == 'C' && pantalla == 25 && ( Num_gal_valido<0.25 || Num_gal_valido > cantidad_galones_validacion ) ) )        // CONDICION 9)                                                                                                                                                             
   {
     borrar_galones ();                             // BORRAR VARIABLES DE FUNCION GALONES
-    ESTADO_SUPER_6 ();                             // LLAMA AL MUESTRA ERROR EN INGRESO GALONES
-    pantalla = ESTADO_SUPER_5 ();                    // LLAMA AL INGRESO DE # GALONES PARA QUE REINGRESE LOS DATOS
+    ESTADO_SUPER_6 (lcd, dato, pantalla);                             // LLAMA AL MUESTRA ERROR EN INGRESO GALONES
+    pantalla = ESTADO_SUPER_5 (lcd, dato, pantalla);                    // LLAMA AL INGRESO DE # GALONES PARA QUE REINGRESE LOS DATOS
     num_estado = pantalla;                          // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( dato == 'B' && pantalla == 27 )                // CONDICION 10)                                                                                                                                                             
   {
-    pantalla = ESTADO_SUPER_8 ();                    // LLAMA AL INGRESO DE CHOFER #2
+    pantalla = ESTADO_SUPER_8 (lcd, dato, pantalla);                    // LLAMA AL INGRESO DE CHOFER #2
     num_estado = pantalla;                          // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( dato == 'A' && pantalla == 28 )                // CONDICION 11)                                                                                                                                                             
   {
-    pantalla = ESTADO_SUPER_7 ();                    // LLAMA AL INGRESO DE CHOFER #1
+    pantalla = ESTADO_SUPER_7 (lcd, dato, pantalla);                    // LLAMA AL INGRESO DE CHOFER #1
     num_estado = pantalla;                          // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( ( dato == 'C' && pantalla == 28 ) || ( dato == 'C' && pantalla == 27 ) )                // CONDICION 12)   OPERACION OR    CONDICION 13)                                                                                                                                                       
   {
     ordenar_parametros_super (pantalla);
-    pantalla = ESTADO_SUPER_9 ();                    // LLAMA FUNCION ELEGIR RESPONSABLE #1
+    pantalla = ESTADO_SUPER_9 (lcd, dato, pantalla);                    // LLAMA FUNCION ELEGIR RESPONSABLE #1
     num_estado = pantalla;                          // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( dato == 'B' && pantalla == 29 )                // CONDICION 14)                                                                                                                                                             
   {
-    pantalla = ESTADO_SUPER_10 ();                   // LLAMA AL INGRESO DE RESPONSABLE #2
+    pantalla = ESTADO_SUPER_10 (lcd, dato, pantalla);                   // LLAMA AL INGRESO DE RESPONSABLE #2
     num_estado = pantalla;                          // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
   if ( dato == 'A' && pantalla == 30 )                // CONDICION 15)                                                                                                                                                             
   {
-    pantalla = ESTADO_SUPER_9 ();                    // LLAMA AL INGRESO DE RESPONSABLE #1
+    pantalla = ESTADO_SUPER_9 (lcd, dato, pantalla);                    // LLAMA AL INGRESO DE RESPONSABLE #1
     num_estado = pantalla;                          // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
@@ -283,12 +283,12 @@ void loop ()
   if ( ( base_datos == 0 && pantalla == 31 ) )          // CONDICION 18)                                                                                                                                                       
   {
     borrar_cedula ();
-    ESTADO_SUPER_12 ();                            // LLAMA FUNCION ENVIAR A BASE DE DATOS
+    ESTADO_SUPER_12 (dato, pantalla);                            // LLAMA FUNCION ENVIAR A BASE DE DATOS
     base_datos = 1;                                 // BANDERA BASE DE DATOS ESPERA USADA PARA HACER UNA SOLA EJECUCION
     bandera_datos = 1;
     base_datos_protocolo (chofer, factura_fila, Num_gal_valido);               // AGREGAR RESPONSABLE
     borrar ();
-    pantalla = ESTADO_1 ();                          // LLAMA FUNCION ESTADO 1
+    pantalla = ESTADO_1 (lcd, dato, pantalla);;                          // LLAMA FUNCION ESTADO 1
     num_estado = pantalla;                          // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
@@ -297,47 +297,47 @@ void loop ()
 
   if ( ( teclado.getState () != 2 && num_estado == 1 && dato != 0 ) )          // CONDICION 15)                                                                                                                                                       
   {
-    num_estado = ESTADO_2 ();                                            // LLAMA FUNCION ESTADO 2
+    num_estado = ESTADO_2 (lcd, dato, pantalla, tiempo_espera);;                                            // LLAMA FUNCION ESTADO 2
   }
 
   comparacion_ced (num_estado, cedula_fila, bandera_cedula);           // FUNCION RETORNA EL VALOR DE LA bandera_cedula SOLO SE EJECUTA CUANDO num_estado==2 Y contador_cedula>=10 y dato=='C'
 
   if ( ( bandera_cedula == 0 && num_estado == 2 && dato == 'C' && contador_cedula >= 10 ) )          // CONDICION 16)                                                                                                                                                       
   {
-    ESTADO_3 ();                                                       // LLAMA FUNCION ESTADO 3
+    ESTADO_3 (lcd, dato, pantalla);                                                       // LLAMA FUNCION ESTADO 3
     borrar_cedula ();                                                  // LLAMA FUNCION BORRAR CEDULA
-    num_estado = ESTADO_2 ();                                            // LLAMA FUNCION ESTADO 2
+    num_estado = ESTADO_2 (lcd, dato, pantalla, tiempo_espera);                                            // LLAMA FUNCION ESTADO 2
   }
 
   if ( ( bandera_cedula == 1 && num_estado == 2 && dato == 'C' && contador_cedula >= 10 ) )          // CONDICION 17)                                                                                                                                                       
   {
-    num_estado = ESTADO_4 ();                                            // LLAMA FUNCION ESTADO 2
+    num_estado = ESTADO_4 (lcd, dato, pantalla);                                            // LLAMA FUNCION ESTADO 2
   }
 
   comparacion_mov (num_estado, movil_fila, bandera_movil);
 
   if ( ( bandera_movil == 0 && num_estado == 4 && dato == 'C' && contador_movil >= 2 ) )          // CONDICION 18)                                                                                                                                                       
   {
-    ESTADO_5 ();                                                       // LLAMA FUNCION ESTADO 5
+    ESTADO_5 (lcd, dato, pantalla);                                                       // LLAMA FUNCION ESTADO 5
     borrar_movil ();                                                   // LLAMA FUNCION BORRAR MOVIL
-    num_estado = ESTADO_4 ();                                            // LLAMA FUNCION ESTADO 2
+    num_estado = ESTADO_4 (lcd, dato, pantalla);                                            // LLAMA FUNCION ESTADO 2
   }
 
   if ( ( bandera_movil == 1 && num_estado == 4 && dato == 'C' && contador_movil >= 2 ) )          // CONDICION 19)                                                                                                                                                       
   {
-    num_estado = ESTADO_6 ();                                            // LLAMA FUNCION ESTADO 6
+    num_estado = ESTADO_6 (lcd, dato, pantalla);                                            // LLAMA FUNCION ESTADO 6
   }
 
   if ( ( Num_gal_valido < 0.25 || Num_gal_valido>500 ) && num_estado == 6 && dato == 'C' )          // CONDICION 20)                                                                                                                                                       
   {
-    ESTADO_7 ();                                                       // LLAMA FUNCION ESTADO 7
+    ESTADO_7 (lcd, dato, pantalla);                                                       // LLAMA FUNCION ESTADO 7
     borrar_galones ();                                                 // BORRAR VARIABLES DE FUNCION GALONES
-    num_estado = ESTADO_6 ();                                            // LLAMA FUNCION ESTADO 6
+    num_estado = ESTADO_6 (lcd, dato, pantalla);                                            // LLAMA FUNCION ESTADO 6
   }
 
   if ( ( Num_gal_valido >= 0.25 && Num_gal_valido <= 500 ) && num_estado == 6 && dato == 'C' )          // CONDICION 21)                                                                                                                                                       
   {
-    num_estado = ESTADO_8 ();                                            // LLAMA FUNCION ESTADO 8
+    num_estado = ESTADO_8 (lcd, dato, pantalla, Datos_nombre[bandera_nombre_ced]);                                            // LLAMA FUNCION ESTADO 8
     lee_clave_epprom ();
   }
 
@@ -348,27 +348,27 @@ void loop ()
 
     if ( clave_valida == 0 )                                        // CONDICION 23)                                                                                                                                                       
     {
-      num_estado = ESTADO_9 ();                                       // LLAMA FUNCION ESTADO 9
+      num_estado = ESTADO_9 (lcd, dato, pantalla);                                       // LLAMA FUNCION ESTADO 9
     }
 
     if ( num_estado == 9 && cont_intentos_clave < 3 )            // CONDICION 24)                                                                                                                                                       
     {
       borrar_clave ();
       delay (2000);
-      num_estado = ESTADO_8 ();                                   // LLAMA FUNCION ESTADO 8
+      num_estado = ESTADO_8 (lcd, dato, pantalla, Datos_nombre[bandera_nombre_ced]);                                   // LLAMA FUNCION ESTADO 8
     }
 
     if ( num_estado == 9 && cont_intentos_clave >= 3 )          // CONDICION 25)                                                                                                                                                       
     {
-      ESTADO_10 ();                                             // LLAMA FUNCION ESTADO 10            
+      ESTADO_10 (lcd, dato, pantalla);                                             // LLAMA FUNCION ESTADO 10            
       delay (2000);
       borrar ();
-      num_estado = ESTADO_1 ();                                   // LLAMA FUNCION ESTADO 1
+      num_estado = ESTADO_1 (lcd, dato, pantalla);                                   // LLAMA FUNCION ESTADO 1
     }
 
     if ( clave_valida == 1 )                                    // CONDICION 26)                                                                                                                                                       
     {
-      num_estado = ESTADO_11 ();                                // LLAMA FUNCION ESTADO 11   QUITAR PRECARGAR          
+      num_estado = ESTADO_11 (pantalla, BOMBA);                                // LLAMA FUNCION ESTADO 11   QUITAR PRECARGAR          
     }
   }
 
@@ -382,7 +382,7 @@ void loop ()
     lcd.setCursor (0, 1);
     lcd.print (Num_gal_valido);
 
-    num_estado = ESTADO_12 ();                                  // LLAMA FUNCION ESTADO 12
+    num_estado = ESTADO_12 (lcd, dato, pantalla, Num_gal_valido, galones_cargados);                                  // LLAMA FUNCION ESTADO 12
     wdt_disable ();                                         // Deshabilita wdt      
 
   }
@@ -392,7 +392,7 @@ void loop ()
 
     digitalWrite (BOMBA, LOW);
     num_estado = 13;
-    ESTADO_13 ();                                  // LLAMA FUNCION ESTADO 13 
+    ESTADO_13 (lcd, dato, pantalla, cedula_fila, movil_fila, galones_cargados, previousMillisWDT, intervalWDT);                                  // LLAMA FUNCION ESTADO 13 
     bandera_datos_gas = 1;
 
 #ifdef DEBUG 
@@ -406,7 +406,7 @@ void loop ()
       base_datos_gas (Datos_nombre[bandera_nombre_ced], cedula_fila, galones_cargados, movil_fila);      // LLAMA A LA FUNCION ENVIAR DATOS A TABLA DE DESPACHO
     }
     borrar ();
-    num_estado = ESTADO_1 ();                                   // LLAMA FUNCION ESTADO 1     
+    num_estado = ESTADO_1 (lcd, dato, pantalla);;                                   // LLAMA FUNCION ESTADO 1     
     wdt_enable (WDTO_8S);                                     // Habilita wdt           
   }
 
@@ -435,7 +435,7 @@ void loop ()
 #endif       
 
     borrar ();
-    num_estado = ESTADO_1 ();                                   // LLAMA FUNCION ESTADO 1   
+    num_estado = ESTADO_1 (lcd, dato, pantalla);;                                   // LLAMA FUNCION ESTADO 1   
     tiempo_espera = millis ();                                  // ACTUALIZA TEMPORIZADOR
   }
 
@@ -467,7 +467,7 @@ void loop ()
   if ( pantalla == 42 && dato == 'C' )                             // CONDICION 43) 
   {
     borrar ();                                                 // BORRAR TODAS LAS VARIABLES  
-    pantalla = ESTADO_1 ();                                      // LLAMA A PANTALLA INICIO
+    pantalla = ESTADO_1 (lcd, dato, pantalla);;                                      // LLAMA A PANTALLA INICIO
     num_estado = pantalla;                                      // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
@@ -488,7 +488,7 @@ void loop ()
   {
     pantalla = ESTADO_CLAVE_45 ();                               // LLAMA A PANTALLA OPERACIÓN FALLIDA
     borrar ();                                                 // BORRAR TODAS LAS VARIABLES  
-    pantalla = ESTADO_1 ();                                      // LLAMA A PANTALLA INICIO
+    pantalla = ESTADO_1 (lcd, dato, pantalla);;                                      // LLAMA A PANTALLA INICIO
     num_estado = pantalla;                                      // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
@@ -496,7 +496,7 @@ void loop ()
   {
     pantalla = ESTADO_CLAVE_46 ();                               // LLAMA A PANTALLA INGRESE NUEVA CLAVE
     nueva_clave_1 = nueva_Camb_clave;
-    borrar_ingrese_nueva_clave ();
+    borrar_ingrese_nueva_clave (nueva_camb_clave, nueva_erase_lcd, nueva_cont_clave, nueva_Camb_clave);
     num_estado = pantalla;                                      // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
@@ -509,10 +509,10 @@ void loop ()
   if ( nueva_clave_1 == nueva_clave_2 && pantalla == 47 )                  // CONDICION 49)
   {
     pantalla = ESTADO_CLAVE_48 ();                               // LLAMA A PANTALLA CLAVE SE CAMBIO CORRECTAMENTE
-    escribir_password ();
+    escribir_password (nueva_camb_clave);
     delay (2000);
     borrar ();
-    pantalla = ESTADO_1 ();                                      // LLAMA A PANTALLA INICIO
+    pantalla = ESTADO_1 (lcd, dato, pantalla);;                                      // LLAMA A PANTALLA INICIO
     num_estado = pantalla;                                      // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
@@ -521,7 +521,7 @@ void loop ()
     pantalla = ESTADO_CLAVE_49 ();                               // LLAMA A PANTALLA OPERACIÓN FALLIDA
     delay (2000);
     borrar ();
-    pantalla = ESTADO_1 ();                                      // LLAMA A PANTALLA INICIO
+    pantalla = ESTADO_1 (lcd, dato, pantalla);;                                      // LLAMA A PANTALLA INICIO
     num_estado = pantalla;                                      // GUARDA EL VALOR DE pantalla EN num_estado PARA SABER EN QUE PANTALLA ESTA
   }
 
@@ -865,28 +865,6 @@ void ingreso_movil (char dato_movil, int num_estado_movil)
 
 //--------------------------------------------------------------------INICIO FUNCIÓN COMPARAR CEDULAS-------------------------------------------------------------------------------------------------------
 
-// void comparacion_mov (int num_estado_mov, String fila_mov, int bandera_movil_aux)
-// {
-
-//   if ( num_estado_mov == 4 && contador_movil >= 2 && bandera_movil_aux != 1 && dato == 'C' )
-//   {
-//     for ( uint8_t i = 0; i <= sizeof (movil_puntero) / 2; i++ )
-//     {
-//       if ( fila_mov == movil_puntero[i] )
-//       {
-//         bandera_movil = 1;
-// #ifdef DEBUG 
-//         Serial.println ("Movil correcto");
-// #endif               
-//       }
-//     }
-//   }
-//   if ( contador_movil < 2 )
-//   {
-//     bandera_movil = 0;
-//   }
-// }
-
 void comparacion_mov (int num_estado_mov, String fila_mov, int bandera_movil_aux)
 {
   if ( num_estado_mov == 4 && contador_movil >= 2 && bandera_movil_aux != 1 && dato == 'C' )
@@ -970,40 +948,6 @@ void validar_cedula (char dato_ced, int num_estado_ced)      // FUNCION VALIDAR 
 
 
 //--------------------------------------------------------------------INICIO FUNCIÓN COMPARAR CEDULAS-------------------------------------------------------------------------------------------------------
-
-// void comparacion_ced (int num_estado_aux, String cedula_fila_aux, int bandera_cedula_aux)
-// {
-
-//   if ( num_estado_aux == 2 && contador_cedula >= 10 && bandera_cedula_aux != 1 && dato == 'C' )
-//   {
-//     for ( uint8_t i = 0; i <= sizeof (comparar) / 2; i++ )
-//     {
-//       String myString = String (comparar[i]);
-// #ifdef DEBUG 
-//       Serial.print ("i = ");
-//       Serial.println (i);
-//       Serial.print ("Cedula aux = ");
-//       Serial.println (cedula_fila_aux);
-
-//       Serial.print ("Cedula comparada = ");
-//       Serial.println (myString);
-// #endif              
-
-//       if ( cedula_fila_aux == myString )
-//       {
-//         bandera_cedula = 1;
-//         bandera_nombre_ced = i;
-// #ifdef DEBUG 
-//         Serial.println ("Cedula correcta");
-// #endif               
-//       }
-//     }
-//   }
-//   if ( contador_cedula < 10 )
-//   {
-//     bandera_cedula = 0;
-//   }
-// }
 
 void comparacion_ced (int num_estado_aux, String cedula_fila_aux, int bandera_cedula_aux)
 {
@@ -1366,290 +1310,7 @@ void leer_dato_cambiar_clave (int estado_teclas)
 
 
 
-int ESTADO_1 ()                                    // EJECUCION DEL ESTADO 1 PANTALLA DE INICIO 
-{
-  //digitalWrite(BOMBA, LOW);
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("   HIDROELECTRICA"));
-  lcd.setCursor (0, 1);
-  lcd.print (F (" PALMIRA - NANEGAL"));
-  lcd.setCursor (0, 3);
-  lcd.print (F ("BOMBA DE COMBUSTIBLE"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 1 -> "));          // BORRAR
-#endif    
-  pantalla = 1;
-  dato = 0;
-  return pantalla;
-}
 
-int ESTADO_2 ()                                    // EJECUCION DEL ESTADO 1 PANTALLA DE INGRESO CEDULA 
-{
-  tiempo_espera = millis ();                                  // ACTUALIZA TEMPORIZADOR    
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("INGRESE # DE CEDULA"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 2 -> "));          // BORRAR
-#endif    
-  pantalla = 2;
-  dato = 0;
-  return pantalla;
-}
-
-void ESTADO_3 ()                                   // EJECUCION INGRESO INCORRECTO CEDULA     
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("CEDULA INCORRECTA!!!"));
-  lcd.setCursor (0, 3);
-  lcd.print (F ("INGRESE NUEVAMENTE"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 3 -> "));          // BORRAR   
-#endif
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO    
-  delay (2000);                                  // RETARDO PARA VIZUALIZAR EL MENSAJE
-  pantalla = 0;                                   // CARGA EL VALOR DE 0 PORQUE NO IMPORTA EN ESTA ETAPA    
-}
-
-int ESTADO_4 ()                                   // EJECUCION INGRESO MÓVIL     
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("INGRESE MOVIL: "));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 4 -> "));          // BORRAR   
-#endif
-  pantalla = 4;
-  dato = 0;
-  return pantalla;
-}
-
-void ESTADO_5 ()                                   // EJECUCION INGRESO INCORRECTO CEDULA     
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("MOVIL INCORRECTO!!!"));
-  lcd.setCursor (0, 3);
-  lcd.print (F ("INGRESE NUEVAMENTE"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 5 -> "));          // BORRAR   
-#endif
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO    
-  delay (2000);                                  // RETARDO PARA VIZUALIZAR EL MENSAJE
-  pantalla = 0;                                   // CARGA EL VALOR DE 0 PORQUE NO IMPORTA EN ESTA ETAPA    
-}
-
-int ESTADO_6 ()                                    // EJECUCION DEL ESTADO 6 PANTALLA DE INGRESO GALONES 
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("INGRESE GALONES:"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 6 -> "));          // BORRAR
-#endif
-  pantalla = 6;
-  dato = 0;
-  return pantalla;
-}
-
-void ESTADO_7 ()                                   // EJECUCION INGRESO INCORRECTO GALONES     
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("# GALONES INCORRECTO"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 7 -> "));          // BORRAR   
-#endif         
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO    
-  delay (2000);                                  // RETARDO PARA VIZUALIZAR EL MENSAJE
-  pantalla = 0;                                   // CARGA EL VALOR DE 0 PORQUE NO IMPORTA EN ESTA ETAPA    
-}
-
-int ESTADO_8 ()                                    // EJECUCION DEL ESTADO 8 PANTALLA DE INGRESO CLAVE 
-{
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print ("INGRESE SU CLAVE");  // IMPRIME EL NOMBRE DEL USUARIO EN EL LCD
-  lcd.setCursor (0, 1);
-  lcd.print (Datos_nombre[bandera_nombre_ced]);  // IMPRIME EL NOMBRE DEL USUARIO EN EL LCD
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 8 -> "));          // BORRAR
-#endif    
-  pantalla = 8;
-  dato = 0;
-  return pantalla;
-}
-
-int ESTADO_9 ()                                   // EJECUCION INGRESO INCORRECTO CLAVE     
-{
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("CLAVE INCORRECTA!!!"));
-  lcd.setCursor (0, 1);
-  lcd.print (F ("INGRESE NUEVAMENTE"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 9 -> "));          // BORRAR   
-#endif           
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO    
-  delay (2000);                                  // RETARDO PARA VIZUALIZAR EL MENSAJE
-  pantalla = 9;                                   // CARGA EL VALOR DE 0 PORQUE NO IMPORTA EN ESTA ETAPA         
-  return pantalla;
-}
-
-void ESTADO_10 ()                                  // EJECUCION INGRESO USUARIO BLOQUEAD     
-{
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("USUARIO BLOQUEADO"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 10 -> "));         // BORRAR   
-#endif          
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO    
-  delay (2000);                                  // RETARDO PARA VIZUALIZAR EL MENSAJE
-  pantalla = 0;                                   // CARGA EL VALOR DE 0 PORQUE NO IMPORTA EN ESTA ETAPA    
-}
-
-int ESTADO_11 ()                                   // EJECUCION INGRESO INCORRECTO CLAVE     
-{
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 11 -> "));         // BORRAR   
-#endif
-
-  digitalWrite (BOMBA, HIGH);
-
-  pantalla = 11;                                  // CARGA EL VALOR DE 0 PORQUE NO IMPORTA EN ESTA ETAPA         
-  return pantalla;
-}
-
-int ESTADO_12 ()                                   // EJECUCION CARGANDO GALONES     
-{
-  //      lcd.clear();
-  //      lcd.setCursor(0, 0);
-  //      lcd.print(F("CARGANDO GALONES"));
-  //      lcd.setCursor(0, 1);
-  //      lcd.print(Num_gal_valido);
-
-  if ( Num_gal_valido < 10 )
-  {
-    lcd.setCursor (4, 1);
-    lcd.print (F ("="));
-    lcd.setCursor (5, 1);
-    lcd.print (galones_cargados);
-  }
-  if ( Num_gal_valido >= 10 && Num_gal_valido < 100 )
-  {
-    lcd.setCursor (5, 1);
-    lcd.print (F ("="));
-    lcd.setCursor (6, 1);
-    lcd.print (galones_cargados);
-  }
-  if ( Num_gal_valido >= 100 && Num_gal_valido <= 500 )
-  {
-    lcd.setCursor (6, 1);
-    lcd.print (F ("="));
-    lcd.setCursor (7, 1);
-    lcd.print (galones_cargados);
-  }
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 12 -> "));          // BORRAR   
-#endif                         
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO    
-  pantalla = 12;                                   // CARGA EL VALOR DE 0 PORQUE NO IMPORTA EN ESTA ETAPA         
-  return pantalla;
-}
-
-
-int ESTADO_13 ()                                   // EJECUCION CARGANDO GALONES     
-{
-
-  reiniciar_wdt ();
-
-  digitalWrite (buzzer, HIGH);
-  delay (Tiempo_buzzer);                         // RETARDO PARA VIZUALIZAR EL MENSAJE
-
-  digitalWrite (buzzer, LOW);
-  delay (Tiempo_buzzer);                         // RETARDO PARA VIZUALIZAR EL MENSAJE
-
-  digitalWrite (buzzer, HIGH);
-  delay (Tiempo_buzzer);                         // RETARDO PARA VIZUALIZAR EL MENSAJE
-
-  digitalWrite (buzzer, LOW);
-  delay (Tiempo_buzzer);                         // RETARDO PARA VIZUALIZAR EL MENSAJE
-
-  digitalWrite (buzzer, HIGH);
-  delay (Tiempo_buzzer);                         // RETARDO PARA VIZUALIZAR EL MENSAJE
-
-  digitalWrite (buzzer, LOW);
-  delay (Tiempo_buzzer);
-
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("CEDULA"));
-  lcd.setCursor (0, 1);
-  lcd.print (( cedula_fila ));
-  delay (3000);
-
-  reiniciar_wdt ();
-
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("GALONES"));
-  lcd.setCursor (0, 1);
-  lcd.print (( galones_cargados ));
-  delay (3000);
-
-  reiniciar_wdt ();
-
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("MOVIL"));
-  lcd.setCursor (0, 1);
-  lcd.print (( movil_fila ));
-  delay (3000);
-
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 13 -> "));          // BORRAR    
-#endif    
-  dato = 0;                                        // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO        
-  pantalla = 13;                                   // CARGA EL VALOR DE 0 PORQUE NO IMPORTA EN ESTA ETAPA         
-  return pantalla;
-}
-
-
-int ESTADO_SUPER_1 ()                              // EJECUCION MENU SUPER USUARIO ITEM SELECCIONADO VER # DE GALONES 
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("--> NUMERO GALONES"));
-  lcd.setCursor (0, 3);
-  lcd.print (F ("    NUEVA CARGA   "));
-
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 21 -> "));         // BORRAR
-#endif      
-
-  pantalla = 21;
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO
-  return pantalla;
-}
-
-int ESTADO_SUPER_2 ()                              // EJECUCION MENU SUPER USUARIO ITEM SELECCIONADO NUEVA CARGA  
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("    NUMERO GALONES"));
-  lcd.setCursor (0, 3);
-  lcd.print (F ("--> NUEVA CARGA   "));
-
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 22 -> "));         // BORRAR    
-#endif      
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO   
-  pantalla = 22;
-  return pantalla;
-}
 
 int ESTADO_SUPER_3 ()                              // EJECUCION CICLICA LECTURA DEL SENSOR ULTRASONICO     
 {
@@ -1696,107 +1357,11 @@ int ESTADO_SUPER_3 ()                              // EJECUCION CICLICA LECTURA 
   return pantalla;
 }
 
-int ESTADO_SUPER_4 ()                              // EJECUCION INGRESO DATOS FACTURA     
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("INGRESE FACTURA"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 24 -> "));         // BORRAR    
-#endif     
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO    
-  pantalla = 24;
-  return pantalla;
-}
-
-int ESTADO_SUPER_5 ()                              // EJECUCION INGRESO DATOS GALONES     
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("INGRESE GALONES:"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 25 -> "));         // BORRAR   
-#endif    
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO    
-  pantalla = 25;
-  return pantalla;
-}
-
-void ESTADO_SUPER_6 ()                              // EJECUCION INGRESO INCORRECTO GALONES     
-{
-  cabecera_lcd (lcd);
-  lcd.setCursor (0, 2);
-  lcd.print (F ("# GAL INCORRECTO!!!"));
-  lcd.setCursor (0, 3);
-  lcd.print (F ("INGRESE NUEVAMENTE"));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 26 -> "));         // BORRAR   
-#endif     
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO    
-  delay (2000);                                  // RETARDO PARA VIZUALIZAR EL MENSAJE
-  pantalla = 0;                                   // CARGA EL VALOR DE 0 PORQUE NO IMPORTA EN ESTA ETAPA    
-}
 
 
-int ESTADO_SUPER_7 ()                              // EJECUCION MENU SUPER USUARIO ITEM SELECCIONADO CHOFER # 1  
-{
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("--> CEVALLOS E."));
-  lcd.setCursor (0, 1);
-  lcd.print (F ("    MORENO W."));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 27 -> "));         // BORRAR
-#endif    
-  pantalla = 27;
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO
-  return pantalla;
-}
 
-int ESTADO_SUPER_8 ()                              // EJECUCION MENU SUPER USUARIO ITEM SELECCIONADO CHOFER # 2 
-{
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("    CEVALLOS E."));
-  lcd.setCursor (0, 1);
-  lcd.print (F ("--> MORENO W."));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 28 -> "));         // BORRAR    
-#endif    
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO   
-  pantalla = 28;
-  return pantalla;
-}
 
-int ESTADO_SUPER_9 ()                              // EJECUCION MENU SUPER USUARIO ITEM SELECCIONADO RESPONSABLE # 1  
-{
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("--> BELTRAN J."));
-  lcd.setCursor (0, 1);
-  lcd.print (F ("    JOSE A. A."));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 29 -> "));         // BORRAR
-#endif    
-  pantalla = 29;
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO
-  return pantalla;
-}
 
-int ESTADO_SUPER_10 ()                              // EJECUCION MENU SUPER USUARIO ITEM SELECCIONADO RESPONSABLE # 2 
-{
-  lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.print (F ("    BELTRAN J."));
-  lcd.setCursor (0, 1);
-  lcd.print (F ("--> JOSE A. A."));
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 30 -> "));         // BORRAR    
-#endif    
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO   
-  pantalla = 30;
-  return pantalla;
-}
 
 int ESTADO_SUPER_11 ()                              // MOSTRAR LOS PARAMETROS EN LCD CEDULA, GALONES, FACTURA, CHOFER
 {
@@ -1807,7 +1372,7 @@ int ESTADO_SUPER_11 ()                              // MOSTRAR LOS PARAMETROS EN
   lcd.print (( factura_fila ));
   delay (3000);
 
-  reiniciar_wdt ();
+  reiniciar_wdt (previousMillisWDT, intervalWDT);
 
   lcd.clear ();
   lcd.setCursor (0, 0);
@@ -1816,7 +1381,7 @@ int ESTADO_SUPER_11 ()                              // MOSTRAR LOS PARAMETROS EN
   lcd.print (( gal_fila ));
   delay (3000);
 
-  reiniciar_wdt ();
+  reiniciar_wdt (previousMillisWDT, intervalWDT);
 
   lcd.clear ();
   lcd.setCursor (0, 0);
@@ -1825,7 +1390,7 @@ int ESTADO_SUPER_11 ()                              // MOSTRAR LOS PARAMETROS EN
   lcd.print (( chofer_lcd ));
   delay (3000);
 
-  reiniciar_wdt ();
+  reiniciar_wdt (previousMillisWDT, intervalWDT);
 
 #ifdef DEBUG 
   Serial.println (F ("pantalla 31 -> "));         // BORRAR    
@@ -1835,15 +1400,7 @@ int ESTADO_SUPER_11 ()                              // MOSTRAR LOS PARAMETROS EN
   return pantalla;
 }
 
-int ESTADO_SUPER_12 ()                             // ESCRIBE EN LA BASE DE DATOS
-{
-#ifdef DEBUG 
-  Serial.println (F ("pantalla 32 -> "));         // BORRAR    
-#endif         
-  dato = 0;                                       // DATO SE CARGA CON CERO PARA QUE NO INGRESE DE NUEVO   
-  pantalla = 32;
-  return pantalla;
-}
+
 
 int ESTADO_CLAVE_41 ()
 {
@@ -2535,17 +2092,6 @@ void antigua_clave (char clave, int num_clave)
   }
 }
 
-void borrar_ingrese_nueva_clave ()
-{
-  nueva_camb_clave[0] = 0;
-  nueva_camb_clave[1] = 0;
-  nueva_camb_clave[2] = 0;
-  nueva_camb_clave[3] = 0;
-  nueva_erase_lcd = 0;
-  nueva_cont_clave = 0;
-  nueva_Camb_clave = "";
-}
-
 void ingrese_nueva_clave (char clave, int nueva_clave)
 {
 
@@ -2729,202 +2275,3 @@ void lee_clave_epprom ()
 #endif           
 }
 
-void escribir_password ()
-{
-
-
-  EEPROM.write (0, nueva_camb_clave[0]);
-  EEPROM.write (1, nueva_camb_clave[1]);
-  EEPROM.write (2, nueva_camb_clave[2]);
-  EEPROM.write (3, nueva_camb_clave[3]);
-
-  String prueba = String (nueva_camb_clave[0]) + String (nueva_camb_clave[1]) + String (nueva_camb_clave[2]) + String (nueva_camb_clave[3]);
-
-#ifdef DEBUG 
-  Serial.println ("");
-  Serial.println ("****** MEMORIA EEPROM DEBUG ******");
-  Serial.println ("ESCRIBIR EN MEMORIA EEPROM");
-  Serial.print ("CLAVE INGRESADA EN MEMORIA EPPROM ");
-  Serial.println (prueba);
-  Serial.println ("");
-#endif           
-  delay (2000);
-}
-
-void reiniciar_wdt ()
-{
-
-  unsigned long currentMillis = millis ();
-
-  if ( currentMillis - previousMillisWDT >= intervalWDT )
-  {
-    previousMillisWDT = currentMillis;
-    wdt_reset ();
-
-#ifdef DEBUG 
-    Serial.println ("");
-    Serial.println ("****** WATCH DOG TIMER ******");
-    Serial.print ("Tiempo = ");
-    Serial.print (intervalWDT / 1000);
-    Serial.println (" s");
-    Serial.println ("REINICIADO");
-#endif 
-  }
-}
-
-// void mensaje_incio ()
-// {
-//   lcd.clear ();                                                    // BORRAR PANTALLA DE LCD
-//   lcd.setCursor (0, 0);                                            // POSICIONA EL CURSOR EL LA PRIMERA FILA DEL LCD
-//   lcd.print (F ("   HIDROELECTRICA"));                              // IMPRIME MENSAJE
-//   lcd.setCursor (0, 1);                                            // POSICIONA EL CURSOR EL LA SEGUNDA FILA DEL LCD
-//   lcd.print (F ("  PALMIRA - NANEGAL"));                            // IMPRIME MENSAJE
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO.");                                        // IMPRIME MENSAJE
-//   delay (200);                                                     // RETARDO ESPERAR 500 MILISEGUNDOS
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO..");                                       // IMPRIME MENSAJE
-//   delay (200);                                                     // RETARDO ESPERAR 500 MILISEGUNDOS
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO...");                                      // IMPRIME MENSAJE
-//   delay (200);                                                     // RETARDO ESPERAR 500 MILISEGUNDOS
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO....");                                     // IMPRIME MENSAJE
-//   delay (200);                                                     // RETARDO ESPERAR 500 MILISEGUNDOS
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO.....");                                    // IMPRIME MENSAJE
-//   delay (200);                                                     // RETARDO ESPERAR 500 MILISEGUNDOS
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO......");                                   // IMPRIME MENSAJE
-//   delay (200);                                                     // RETARDO ESPERAR 500 MILISEGUNDOS
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO.......");                                  // IMPRIME MENSAJE
-//   delay (200);                                                     // RETARDO ESPERAR 500 MILISEGUNDOS
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO........");                                 // IMPRIME MENSAJE
-//   delay (200);                                                     // RETARDO ESPERAR 500 MILISEGUNDOS
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO.........");                                // IMPRIME MENSAJE
-//   delay (200);
-
-//   lcd.setCursor (0, 3);                                            // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO..........");                               // IMPRIME MENSAJE    
-//   delay (200);
-
-//   lcd.setCursor (0, 3);                                             // POSICIONA EL CURSOR EN LA TERCERA FILA DEL LCD
-//   lcd.print ("INICIANDO...........");                               // IMPRIME MENSAJE    
-//   delay (200);
-// }
-
-// void cabecera_lcd (LiquidCrystal_I2C& lcd)
-// {
-//   lcd.clear ();                                                    // BORRAR PANTALLA DE LCD
-//   lcd.setCursor (0, 0);                                            // POSICIONA EL CURSOR EL LA PRIMERA FILA DEL LCD
-//   lcd.print (F ("   HIDROELECTRICA"));                              // IMPRIME MENSAJE
-//   lcd.setCursor (0, 1);                                            // POSICIONA EL CURSOR EL LA SEGUNDA FILA DEL LCD
-//   lcd.print (F ("  PALMIRA - NANEGAL"));                            // IMPRIME MENSAJE
-// }
-
-// void mensaje_iniciar_sistema ()
-// {
-//   lcd.clear ();                                                    // BORRAR PANTALLA DE LCD
-//   lcd.setCursor (0, 0);                                            // POSICIONA EL CURSOR EL LA PRIMERA FILA DEL LCD
-//   lcd.print (F ("Presione Una Tecla"));                                // IMPRIME MENSAJE
-//   lcd.setCursor (0, 1);                                            // POSICIONA EL CURSOR EL LA SEGUNDA FILA DEL LCD
-//   lcd.print (F ("Para iniciar"));                                     // IMPRIME MENSAJE
-//   lcd.setCursor (0, 2);                                            // POSICIONA EL CURSOR EL LA SEGUNDA FILA DEL LCD
-//   lcd.print (F ("El Sistema"));                                     // IMPRIME MENSAJE
-// }
-
-char TecladoPC (int num)
-{
-
-  switch ( num )
-  {
-    case 8:
-      return 'i';                       // Izquierda
-      break;
-    case 10:
-      return 'B';                       // BAJAR
-      break;
-    case 11:
-      return 'A';                       // SUBIR
-      break;
-    case 13:
-      return 'C';                       // ENTRAR
-      break;
-    case 21:
-      return 'd';
-      break;
-
-    case 25:
-      return 'F';                      // RePag
-      break;
-
-    case 26:
-      return 'D';                      // AvPag
-      break;
-
-    case 42:
-      return '*';
-      break;
-    case 43:
-      return '+';
-      break;
-    case 45:
-      return '-';
-      break;
-
-    case 46:
-      return '%';         // PUNTO DECIMAL
-      break;
-    case 47:
-      return '/';
-      break;
-    case 48:
-      return '0';
-      break;
-    case 49:
-      return '1';
-      break;
-    case 50:
-      return '2';
-      break;
-    case 51:
-      return '3';
-      break;
-    case 52:
-      return '4';
-      break;
-    case 53:
-      return '5';
-      break;
-    case 54:
-      return '6';
-      break;
-    case 55:
-      return '7';
-      break;
-    case 56:
-      return '8';
-      break;
-    case 57:
-      return '9';
-      break;
-    case 127:
-      return '=';           // BORRAR
-      break;
-    default:
-      return 'x';           // UNA TECLA CUALQUIERA
-      break;
-  }
-}
